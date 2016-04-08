@@ -1,4 +1,5 @@
-import com.sun.org.apache.bcel.internal.generic.LXOR;
+package com.hanwen.utils;
+
 import org.apache.tools.ant.Project;
 import org.apache.tools.ant.taskdefs.Zip;
 import org.apache.tools.ant.types.FileSet;
@@ -22,7 +23,7 @@ public class FileOperator {
      * @param destDir 目标文件
      * @return 没有返回值
      */
-    public void copyFile(File srcFile, File destDir) {
+    public static void copyFile(File srcFile, File destDir) {
         try {
             FileChannel fcin = new FileInputStream(srcFile).getChannel();
             FileChannel fcout = new FileOutputStream(destDir).getChannel();
@@ -47,7 +48,7 @@ public class FileOperator {
      * @param resultFileName 存放读取的文件
      * @return 返回一个resultFileName，存放读取结果
      */
-    public List<File> getFiles(File file, List<File> resultFileName) {
+    public static List<File> getFiles(File file, List<File> resultFileName) {
         File[] files = file.listFiles();
         if (files == null) return resultFileName;
         for (File f : files) {
@@ -68,7 +69,7 @@ public class FileOperator {
      * @param f 当前要读取文件夹
      * @return 返回一个fileList，存放读取的结果
      */
-    public List<File> getFileList(File f) {
+    public static List<File> getFileList(File f) {
         File[] files = f.listFiles();
         List<File> fileList = new ArrayList<File>();
         if (files != null) {
@@ -89,7 +90,7 @@ public class FileOperator {
      * @param fileName 当前要读取的文件
      * @return 返回一个boolean变量true表示是txt，false反之
      */
-    public boolean isTxtFile(String fileName) {
+    public static boolean isTxtFile(String fileName) {
         if (fileName.lastIndexOf(".txt") > 0) {
             return true;
         }
@@ -104,7 +105,7 @@ public class FileOperator {
      * @param file 当前要读取的文件
      * @return 返回一个String存储txt的内容
      */
-    public String txt2String(File file) {
+    public static String txt2String(File file) {
         String result = "";
         try {
             FileReader fr = new FileReader(file);
@@ -121,6 +122,17 @@ public class FileOperator {
         return result;
     }
 
+    public static BufferedReader getBufferReader(String dataPath){
+        File data=new File(dataPath);
+        if(!data.exists())
+            return null;
+        try {
+            return new BufferedReader(new FileReader(data));
+        }catch (IOException e){
+            e.printStackTrace();
+            return null;
+        }
+    }
     /**
      * 删除目录
      * <p>删除目录<br>
@@ -129,7 +141,7 @@ public class FileOperator {
      * @param file 当前要删除的目录
      * @return 没有返回值
      */
-    public void deleteDir(File file) {
+    public static void deleteDir(File file) {
         if (file.isDirectory()) {
             File[] files = file.listFiles();
             if (files != null) {
@@ -149,7 +161,7 @@ public class FileOperator {
      * @param fileName 当前要获取的文件所在路径字符串。
      * @return 返回一个字符串是文件的名字
      */
-    public String getFileNameNoEx(String fileName) {
+    public static String getFileNameNoEx(String fileName) {
         File tempFile = new File(fileName.trim());
         fileName = tempFile.getName();
         if ((fileName.length() > 0)) {
@@ -170,12 +182,12 @@ public class FileOperator {
      * @param srcPathName 压缩后的文件路径及全名
      * @return 没有返回值
      */
-    public void zip(String pathName, String srcPathName) {
+    public static void zip(String pathName, String srcPathName) {
         File srcdir = new File(srcPathName);
         zip(pathName, srcdir);
     }
 
-    public void zip(String pathName, File srcdir) {
+    public static void zip(String pathName, File srcdir) {
         try {
             File zipFile = new File(pathName);
             if (!srcdir.exists()) return;
