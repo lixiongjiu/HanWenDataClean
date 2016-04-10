@@ -1,6 +1,7 @@
 package com.hanwen.utils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,9 +28,11 @@ public class CleanStrategies {
     public static String deleteCompanyNameSymbol(String s) {
         s = s.replaceAll("\\.{1,}", " ");
         s = s.replaceAll(" AND ", " & ");
-        s = s.replaceAll(" And ", " & ");
-        s = s.replaceAll(" and ", " & ");
-        s = s.replaceAll("[^\'a-zA-Z0-9-@&%#]", " ");
+        s = s.replaceAll(" OR ", " | ");
+        s = s.replaceAll(" AND", "And");
+        //俄勒冈州简写，lucene会当成或符号处理
+        s = s.replaceAll(" OR", "OREGON");
+        s = s.replaceAll("[^\'a-zA-Z0-9@&%#]", " ");
         s = s.replaceAll(" {2,}", " ");
         s = s.trim();
         return s;
@@ -43,7 +46,11 @@ public class CleanStrategies {
      */
     public static String deleteCompanyAddressSymbol(String s) {
         //需要保留的字符
-        s = s.replaceAll("[^\'\\.\t&@#a-zA-Z0-9-]", " ");
+        s = s.replaceAll("[^\'\\.\t&@#a-zA-Z0-9]", " ");
+        s = s.replaceAll(" AND ", " & ");
+        s = s.replaceAll(" OR ", " | ");
+        s = s.replaceAll(" OR", "OREGON");
+        s = s.replaceAll(" AND", "And");
         s = s.replaceAll(" {2,}", " ");
         s = s.trim();
         return s;
@@ -88,10 +95,11 @@ public class CleanStrategies {
 
 
         //改进,在不改变源字符串大小写的情况下，较为高效的去除后缀
-        String tmp = s.replaceAll("[\\.,]", " ").toUpperCase();
+        String tmp = s.toUpperCase();
         int index = -1;
-        if ((index = tmp.indexOf("INC ")) != 1 || (index = tmp.indexOf("LLC ")) != -1)
+        if ((index = tmp.indexOf("INC ")) != -1 || (index = tmp.indexOf("LLC ")) != -1) {
             s = s.substring(0, index + 4);
+        }
         return s;
     }
 
@@ -144,6 +152,8 @@ public class CleanStrategies {
      * false:无错位情况
      */
     public static int FirmNameMess(String s) {
+        if (s == null)
+            return -1;
         //将s转换成大写，并将.,转换为空格
         s = s.toUpperCase().replaceAll("[\\.,]", " ");
         int index = -1;
@@ -165,7 +175,11 @@ public class CleanStrategies {
         //改进版
         if ((index = s.indexOf("INC ")) != -1)
             return index;
+        else if ((index = s.indexOf(" INC")) != -1)
+            return index;
         else if ((index = s.indexOf("LLC ")) != -1)
+            return index;
+        else if ((index = s.indexOf(" LLC")) != -1)
             return index;
         else
             return -1;
@@ -180,7 +194,7 @@ public class CleanStrategies {
      * @return 返回公共前缀所占的比例(分母是长度短的)
      */
 
-    public static double Prefix(String s1, String s2) {
+    public static double publicPrefix(String s1, String s2) {
         s1 = s1.replaceAll("\\. \'", "").toUpperCase();
         s2 = s2.replaceAll("\\. \'", "").toUpperCase();
         int count = 0;
@@ -415,28 +429,26 @@ public class CleanStrategies {
 
     /**
      * 综合策略，从搜索到的结果中选定一个，对上面的策略综合应用
-     * @param 搜索到的结果
-     * @return 选定的记录，该记录给 目标记录 的修正 提供参考
+     *
+     * @param searchResults lucene搜索的结果List，包含index，content文档的信息
+     * @param newName       原纪录的公司名
+     * @param newAddress    原纪录的地址信息
+     * @param others        其他信息，辅助参考
+     * @return void
      */
-    public void comprehensiveStrategy(){
+    public static void comprehensiveStrategy(List<Map> searchResults, String newName, String newAddress, String others) {
+
+
         //根据查询结果来清洗每条记录
-        for (int i = 0; i < searchRes.size(); i++) {
-            String tmpLine = searchRes.get(i);
-            int tmpCut1 = tmpLine.indexOf("\t");
-            String tmpCutLine = tmpLine.substring(tmpCut1 + 1);
-            int tmpCut2 = tmpCutLine.indexOf("\t");
+        for (int i = 0; i < searchResults.size(); i++) {
+
 
             //将查询结果进行分割
-            String tmpName = deleteSuffix(deleteCompanyNameSymbol(tmpCutLine.substring(0, tmpCut2)));
-            String tmpAddress = null;
+            //tmp存储的是lucene查询到的信息
+            String[] nameAndAddress = ((String) searchResults.get(i).get("name_address")).split("\t");
+            String tmpName = nameAndAddress[0];
+            String tmpAddress = nameAndAddress[1];
 
-            //注意处理地址为空的异常项目
-            if (tmpCut2 != -1) tmpAddress = deleteCompanyAddressSymbol(tmpLine.substring(tmpCut2 + 1));
-
-            //如果地址第一位是.  即存在错位现象，先去除错位
-            if (tmpAddress.length() > 2 && tmpAddress.charAt(0) == '.' && tmpAddress.charAt(1) == '\t') {
-                tmpAddress = tmpAddress.substring(2);
-            }
 
             //以下是三条判断是否是同一家公司的三条标准
 
@@ -451,20 +463,24 @@ public class CleanStrategies {
 
             //如果：地址余弦比较相似(0.96) && 公共前缀比例大于50%或者公司名字的编辑距离大于0.5
             if ((cosSimlarity(str2vec(newAddress), str2vec(tmpAddress)) > 0.96)
-                    && (publicPrefix(newName, tmpName) > 0.5 || editSimilarity(newName.replaceAll(" \\.", ""), tmpName.replaceAll(" \\.", "")) > 0.5)) {
+                    && (publicPrefix(newName, tmpName) > 0.5
+                    || editSimilarity(newName.replaceAll("[ \\.]", ""), tmpName.replaceAll("[ \\.]", "")) > 0.5)) {
 
                 newName = (tmpName.length() > newName.length()) ? tmpName : newName;
                 newAddress = (tmpAddress.replaceAll("[^a-zA-Z0-9]", "").length() > newAddress.replaceAll("[^a-zA-Z0-9]", "").length()) ? tmpAddress : newAddress;
 
                 //如果：(公司名公共前缀相似度大于50%或者公司名编辑距离大于0.6) &&
                 //     ( (地址余弦相似大于0.94 && 地址的公共项超过50%) || (地址余弦相似大于0.9_这个值其实很低 && 地址的公共项超过70%) )
-            } else if ((publicPrefix(newName, tmpName) > 0.5 || editSimilarity(newName.replaceAll(" \\.", ""), tmpName.replaceAll(" \\.", "")) > 0.6)
+            } else if ((publicPrefix(newName, tmpName) > 0.5 || editSimilarity(newName.replaceAll("[ \\.]", ""), tmpName.replaceAll("[ \\.]", "")) > 0.6)
                     && ((cosSimlarity(str2vec(newAddress), str2vec(tmpAddress)) > 0.94 && addressPublicItems(newAddress, tmpAddress) >= 0.5) ||
                     (cosSimlarity(str2vec(newAddress), str2vec(tmpAddress)) > 0.9 || addressPublicItems(newAddress, tmpAddress) > 0.7))) {
 
                 newName = (tmpName.length() > newName.length()) ? tmpName : newName;
                 newAddress = (tmpAddress.replaceAll("[^a-zA-Z0-9]", "").length() > newAddress.replaceAll("[^a-zA-Z0-9]", "").length()) ? tmpAddress : newAddress;
             }
+
+            Struct.companyName = newName;
+            Struct.companyAddress = newAddress;
         }
     }
 

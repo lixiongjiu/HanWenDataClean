@@ -12,9 +12,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 
 import java.io.BufferedReader;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by LSQ on 2016/2/12.
@@ -22,13 +20,15 @@ import java.util.List;
 public class Indexer {
 
     private IndexWriter indexWriter = null;
-    private IndexSearcher indexSearcher =null;
-    private int topNum=5;                                       //默认搜索Top5个结果
+    private IndexSearcher indexSearcher = null;
+    private int topNum = 5;                                       //默认搜索Top5个结果
     private ILuceneAPI luceneAPI = new LuceneApiImpl();
-    private QueryParser queryParser=null;
+    private QueryParser queryParser = null;
 
     /**
      * 表1创建倒排索引
+     * @status:已测试
+     *
      * @param path 待创建索引文件所在路径
      * @return
      */
@@ -37,6 +37,7 @@ public class Indexer {
         BufferedReader br = FileOperator.getBufferReader(path);
 
        /* 开始时间*/
+        System.out.println("开始创建索引....");
         Date startTime = new Date();
 
         int count = 0;
@@ -44,11 +45,9 @@ public class Indexer {
         try {
 
             String line = null;
-            DataCleaner dataCleaner = new DataCleaner();
             while ((line = br.readLine()) != null) {
-                if (line.equals("\n")) continue;
 
-                //先将一行记录分成三个部分：id，consignee_Name,地址和其他部分
+               /* //先将一行记录分成三个部分：id，consignee_Name,地址和其他部分
                 String[] items=line.split("\t",3);
 
                 //处理收货公司名称，标准化写法，例如and，AND，&;并去除会造成lucene报错的关键字，例如\
@@ -63,14 +62,19 @@ public class Indexer {
                         addressAndOthers[2]+"\t"+
                         addressAndOthers[3];
                 //清理地址部分，只保留下字母，数字，&，@，#，制表符，\.和-等字符
-                String address = CleanStrategies.deleteCompanyAddressSymbol(originAddress);
+                String address = CleanStrategies.deleteCompanyAddressSymbol(originAddress);*/
+
+                //改进分割过程
+                String[] items = SplitAndCleanUtils.splitAndClean(line);
+                if (items == null)
+                    continue;
 
                 Document document = new Document();
                 //公司名和地址将被分词器解析、保存并且可被索引
-                document.add(new Field("index", companyName + "\t" + address, IndexOpts.fieldType_analyzed_stored_indexed));
+                document.add(new Field("index", items[1] + "\t" + items[2], IndexOpts.fieldType_analyzed_stored_indexed));
 
                 //其他信息，包括承运人编号，船东国家编号，船号，航次，提单号，只是保存，仅仅为了搜索时可以提取出来辅助判断
-                document.add(new Field("content",addressAndOthers[4],IndexOpts.fieldType_stored));
+                document.add(new Field("content", items[3], IndexOpts.fieldType_stored));
                 indexWriter.addDocument(document);
 
                 count++;
@@ -83,8 +87,9 @@ public class Indexer {
         }
        /* 结束时间*/
         Date endTime = new Date();
-        System.out.println("创建索引-----耗时：" + (float)(endTime.getTime() -startTime.getTime())/1000 + "s\n");
+        System.out.println("创建索引-----耗时：" + (float) (endTime.getTime() - startTime.getTime()) / 1000 + "s\n");
         System.out.println("共添加了" + --count + "个文件到索引");
+        System.out.println("索引创建完毕.");
         return true;
     }
 
@@ -95,15 +100,15 @@ public class Indexer {
      * @return
      */
     public boolean createIndex2(String path) {
-        indexWriter=luceneAPI.getWriter();
-        BufferedReader br=FileOperator.getBufferReader(path);
-        if(br==null){
+        indexWriter = luceneAPI.getWriter();
+        BufferedReader br = FileOperator.getBufferReader(path);
+        if (br == null) {
             System.out.println("数据文件不存在或者打开错误");
             return false;
         }
         Date date1 = new Date();
 
-        int count=0;
+        int count = 0;
 
         try {
 
@@ -141,19 +146,20 @@ public class Indexer {
 
     /**
      * 检索文本前的准备，主要是按照参数需求新建IndexSearcher，避免每次都新建IndexSearcher，节省开销
+     *
      * @param top  检索返回几个结果
      * @param type 取1代表对表1的索引进行检索，取2对表2内容进行检索
      * @return
      */
-    public void prevSearch(int top, int type){
-        topNum=top;
+    public void prevSearch(int top, int type) {
+        topNum = top;
         if (type == 1)
-            indexSearcher =luceneAPI.getIndexSearch(1);  //lucene5.x
+            indexSearcher = luceneAPI.getIndexSearch(1);  //lucene5.x
         else
-            indexSearcher =luceneAPI.getIndexSearch(2);  //lucene5.x
+            indexSearcher = luceneAPI.getIndexSearch(2);  //lucene5.x
 
         //设置搜索解析器，并设置解析的文档是-idnex（包含公司名，地址信息）
-        queryParser= new QueryParser("index",new WhitespaceAnalyzer());
+        queryParser = new QueryParser("index", new WhitespaceAnalyzer());
 
         //解析器选项设置
         queryParser.setDefaultOperator(QueryParser.Operator.OR);
@@ -163,34 +169,51 @@ public class Indexer {
 
     /**
      * 检索文本
-     * @param text 检索的内容
+     *
+     * @param name_address 检索的内容
      * @return
      */
-    public List<String> searchIndex(String text) {
+    public List<Map> searchIndex(String name_address,String other) {
 
-        List<String> searchResults = null;
-        if (text == null || text.trim().equals("")) return null;
+        if (name_address == null || name_address.trim().equals("")) return null;
 
+        List<Map> results = new ArrayList<Map>();
         try {
-            searchResults=new ArrayList<String>();
-            Query query=queryParser.parse(text);
-            ScoreDoc[] hits =indexSearcher.search(query, topNum).scoreDocs;
-            for (int i = 0; i < hits.length; i++) {
-                Document hitDoc =indexSearcher.doc(hits[i].doc);
-                searchResults.add(hitDoc.get("content"));
 
+            Query query = queryParser.parse(name_address);
+            ScoreDoc[] hits = indexSearcher.search(query, topNum).scoreDocs;
+            for (ScoreDoc scoreDoc : hits) {
+
+                //先对结果进行一下过滤，搜索分数值太低的结果抛弃
+                //同时BillType类型不一样的结果也抛弃
+                if (scoreDoc.score > 2.5) {
+                    Document document = indexSearcher.doc(scoreDoc.doc);
+                    String others=document.get("content");
+                 /*   String tmpBillType=others.substring( others.lastIndexOf("\t")+1 );
+                    if( !tmpBillType.equals(other) ) //抛弃Bill类型和原纪录不一致的结果
+                        continue;*/
+
+                    Map item = new HashMap();
+                    //分别取出公司名，地址
+                    //承运人号码等其他信息
+                    item.put("name_address", document.get("index"));
+                    item.put("others", others);
+                    results.add(item);
+                }
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return searchResults;
+        return results;
     }
 
     /**
      * 搜索结束后的处理，主要是关闭相应的文件流
+     *
      * @param :void
      */
-    public void nextSearch(){
+    public void nextSearch() {
         luceneAPI.closeSearcher();
     }
 }

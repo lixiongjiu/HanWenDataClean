@@ -6,7 +6,9 @@ import org.apache.tools.ant.types.FileSet;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -122,17 +124,47 @@ public class FileOperator {
         return result;
     }
 
-    public static BufferedReader getBufferReader(String dataPath){
-        File data=new File(dataPath);
-        if(!data.exists())
+    /**
+     * 获取文件的BufferedReader对象
+     *
+     * @param dataPath
+     * @return br对象
+     */
+    public static BufferedReader getBufferReader(String dataPath) {
+        File data = new File(dataPath);
+        if (!data.exists()) {
+            System.out.println("该数据源文件不存在！");
             return null;
+        }
         try {
             return new BufferedReader(new FileReader(data));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 获取文件的BufferedWriter对象
+     *
+     * @param destPath 写文件的路径
+     * @return bw对象
+     */
+    public static BufferedWriter getBufferWriter(String destPath) {
+        File dest = new File(destPath);
+        if (!dest.exists())
+            dest.mkdir();
+        try {
+            Date currentTime = new Date();
+            SimpleDateFormat formatter = new SimpleDateFormat("(MM月dd日 HH时mm分ss秒)");
+            String dateString = formatter.format(currentTime);
+            return new BufferedWriter(new FileWriter(destPath+"result"+dateString+".txt"));
         }catch (IOException e){
             e.printStackTrace();
             return null;
         }
     }
+
     /**
      * 删除目录
      * <p>删除目录<br>

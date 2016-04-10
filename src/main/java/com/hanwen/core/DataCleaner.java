@@ -1,6 +1,9 @@
 package com.hanwen.core;
 
+import com.hanwen.utils.CleanStrategies;
+import com.hanwen.utils.FileOperator;
 import com.hanwen.utils.SplitAndCleanUtils;
+import com.hanwen.utils.Struct;
 
 import java.io.*;
 
@@ -21,16 +24,17 @@ public class DataCleaner {
         Indexer indexer = new Indexer();
 
         try {
-            File srcFile = new File(src);
-            BufferedReader br = new BufferedReader(new FileReader(srcFile));
+
+            BufferedReader br = FileOperator.getBufferReader(src);
+            BufferedWriter bw = FileOperator.getBufferWriter(tar);
+            int count = 1; //计数处理文件数
+            int countFalse = 1; //计数错误文件数量
+
             String line = null;
 
-            File tarFile = new File(tar);
-            BufferedWriter bw = new BufferedWriter(new FileWriter(tarFile));
-            int count = 1; //计数处理文件数
-            int countFalse = 0; //计数错误文件数量
-
-            while ((line = br.readLine()) != null) {
+            //搜索前的准备，设置每次搜索的TOP K和搜索的索引（1和2，代表表1和表2）
+            indexer.prevSearch(20,1);
+            while ( (line = br.readLine()) != null ) {
                 //line 分别包含id name address(多个字段)和其他信息
                 String[] items= SplitAndCleanUtils.splitAndClean(line);
                 //整个记录都为空或者公司名为空，则跳过这条记录，无可救药
@@ -43,34 +47,30 @@ public class DataCleaner {
                 String others=items[3];
 
                 //清洗后的结果
-                String newName = name;
-                String newAddress = address;
+                //可以有选择的传入others信息，辅助判断,此时传入的是Bill_Type
+                String billType=others.substring( others.lastIndexOf("\t")+1 );
+                 CleanStrategies.comprehensiveStrategy(indexer.searchIndex(name+"\t"+address,billType),name,address,others);
 
-               /* //用line查询表1倒排索引的结果
-                indexer.prevSearch(20,1);
-                List<String> searchRes = indexer.searchIndex(name+address);
-
-                //处理地址错位项问题
-                if (newAddress.length() > 2 && newAddress.charAt(0) == '.') {
-                    newAddress = newAddress.substring(2);
-                }*/
-
-
-
-                //判断这条记录是否被清洗过
-                if (!name.equalsIgnoreCase(newName) || !address.equalsIgnoreCase(newAddress)) {
+                //判断这条记录是否被清洗过,被清洗过则更新信息
+                if (!name.equalsIgnoreCase(Struct.companyName) || !address.equalsIgnoreCase(Struct.companyAddress)) {
                     countFalse++;
                 }
-
+                count++;
                 //清洗后的结果写入新文件
-                bw.write(id + "\t" + newName + "\t" + newAddress + "\n");
-                System.out.println(count++ + ":" + newName);
+                bw.write(id + "\t" + Struct.companyName + "\t" + Struct.companyAddress +"\t"+ others+ "\n");
+                if(count%1000==0)
+                    bw.flush();
+                if(count>60000)
+                    System.out.println("出错");
             }
-            System.out.println("处理了" + --count + "条记录,\t" + "总共错误了：" + countFalse);
+
+            indexer.nextSearch();
+
+            System.out.println("处理了" + --count + "条记录,\t" + "总共清洗了：" + countFalse);
             bw.flush();
             bw.close();
             br.close();
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

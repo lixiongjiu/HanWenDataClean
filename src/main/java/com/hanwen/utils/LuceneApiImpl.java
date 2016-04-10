@@ -97,7 +97,6 @@ public class LuceneApiImpl implements ILuceneAPI{
     public void closeReader(){
         try{
             if(reader!=null) {
-                directory.close();
                 reader.close();
                 reader=null;
             }
@@ -110,7 +109,6 @@ public class LuceneApiImpl implements ILuceneAPI{
     public void closeWriter(){
         try {
             if(writer!=null) {
-                directory.close();
                 writer.close();
                 writer=null;
             }
