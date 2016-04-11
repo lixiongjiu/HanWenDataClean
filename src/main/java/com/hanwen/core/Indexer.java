@@ -1,11 +1,13 @@
 package com.hanwen.core;
 
+
 import com.hanwen.utils.*;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -27,14 +29,16 @@ public class Indexer {
 
     /**
      * 表1创建倒排索引
-     * @status:已测试
      *
      * @param path 待创建索引文件所在路径
      * @return
+     * @status:已测试
      */
     public boolean createIndex1(String path) {
         indexWriter = luceneAPI.getWriter();
         BufferedReader br = FileOperator.getBufferReader(path);
+        if (br == null)
+            return false;
 
        /* 开始时间*/
         System.out.println("开始创建索引....");
@@ -82,8 +86,10 @@ public class Indexer {
             indexWriter.commit();
             luceneAPI.closeWriter();
             br.close();
+
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
        /* 结束时间*/
         Date endTime = new Date();
@@ -160,27 +166,32 @@ public class Indexer {
 
         //设置搜索解析器，并设置解析的文档是-idnex（包含公司名，地址信息）
         queryParser = new QueryParser("index", new WhitespaceAnalyzer());
+        //IndexWriter用于更新索引信息
+        indexWriter = luceneAPI.getWriter();
 
         //解析器选项设置
-        queryParser.setDefaultOperator(QueryParser.Operator.OR);
-        queryParser.setLowercaseExpandedTerms(true);
+       /* queryParser.setDefaultOperator(QueryParser.Operator.OR);
+        queryParser.setLowercaseExpandedTerms(true);*/
+        System.out.println("搜索前的准备已经完毕...");
+
     }
 
 
     /**
      * 检索文本
      *
-     * @param name_address 检索的内容
+     * @param name    公司名
+     * @param address 地址
      * @return
      */
-    public List<Map> searchIndex(String name_address,String other) {
+    public void searchIndex(String id, String name, String address, String other) {
 
-        if (name_address == null || name_address.trim().equals("")) return null;
+        if (name == null || name.trim().equals("")) return;
 
-        List<Map> results = new ArrayList<Map>();
+        List<String> results = new ArrayList<String>();
         try {
 
-            Query query = queryParser.parse(name_address);
+            Query query = queryParser.parse(name + "\t" + address);
             ScoreDoc[] hits = indexSearcher.search(query, topNum).scoreDocs;
             for (ScoreDoc scoreDoc : hits) {
 
@@ -188,24 +199,29 @@ public class Indexer {
                 //同时BillType类型不一样的结果也抛弃
                 if (scoreDoc.score > 2.5) {
                     Document document = indexSearcher.doc(scoreDoc.doc);
-                    String others=document.get("content");
-                 /*   String tmpBillType=others.substring( others.lastIndexOf("\t")+1 );
-                    if( !tmpBillType.equals(other) ) //抛弃Bill类型和原纪录不一致的结果
-                        continue;*/
+                    String others = document.get("content");
+
+                    String tmpBillType = others.substring(others.lastIndexOf("\t") + 1);
+                    if (!tmpBillType.equals(other)) //抛弃Bill类型和原纪录不一致的结果
+                        continue;
 
                     Map item = new HashMap();
-                    //分别取出公司名，地址
-                    //承运人号码等其他信息
-                    item.put("name_address", document.get("index"));
-                    item.put("others", others);
-                    results.add(item);
+
+                    //取出公司名，地址
+                    results.add(document.get("index"));
                 }
+            }
+
+            //既然该记录要更新，即参照其他记录，则说明自身已经没有参考价值，所以删除该记录
+            if (CleanStrategies.comprehensiveStrategy(results, name, address)) {
+                indexWriter.deleteDocuments(new Term(id));
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return results;
+
+
     }
 
     /**
@@ -215,5 +231,6 @@ public class Indexer {
      */
     public void nextSearch() {
         luceneAPI.closeSearcher();
+        System.out.println("搜索后的善后工作已经完毕。");
     }
 }

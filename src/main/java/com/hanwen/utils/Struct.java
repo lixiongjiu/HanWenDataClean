@@ -6,4 +6,5 @@ package com.hanwen.utils;
 public class Struct {
     public static String companyName=null;
     public static String companyAddress=null;
+    public static boolean changed=false;
 }

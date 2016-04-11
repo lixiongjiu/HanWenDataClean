@@ -26,14 +26,17 @@ public class CleanStrategies {
      * @return 返回删除符号后的字符串
      */
     public static String deleteCompanyNameSymbol(String s) {
-        s = s.replaceAll("\\.{1,}", " ");
-        s = s.replaceAll(" AND ", " & ");
-        s = s.replaceAll(" OR ", " | ");
-        s = s.replaceAll(" AND", "And");
-        //俄勒冈州简写，lucene会当成或符号处理
-        s = s.replaceAll(" OR", "OREGON");
+
         s = s.replaceAll("[^\'a-zA-Z0-9@&%#]", " ");
         s = s.replaceAll(" {2,}", " ");
+        s = s.replaceAll("\\.+", " ");
+        s = s.replaceAll(" AND ", " & ");
+        s = s.replaceAll(" OR ", " OREGON ");
+        s = s.replaceAll(" AND", " And");
+        //俄勒冈州简写，lucene会当成或符号处理
+        s = s.replaceAll(" OR$", " OREGON");
+        s = s.replaceAll("^OR ", "OREGON ");
+        s=s.replaceAll("/",".");
         s = s.trim();
         return s;
     }
@@ -48,10 +51,13 @@ public class CleanStrategies {
         //需要保留的字符
         s = s.replaceAll("[^\'\\.\t&@#a-zA-Z0-9]", " ");
         s = s.replaceAll(" AND ", " & ");
-        s = s.replaceAll(" OR ", " | ");
-        s = s.replaceAll(" OR", "OREGON");
+        s = s.replaceAll(" OR ", " OREGON ");
+        s = s.replaceAll("^OR ", "OREGON ");
+        s = s.replaceAll(" OR$", " OREGON");
+        s = s.replaceAll(" OR.", "OREGON.");
         s = s.replaceAll(" AND", "And");
         s = s.replaceAll(" {2,}", " ");
+        s=s.replaceAll("/",".");
         s = s.trim();
         return s;
     }
@@ -68,9 +74,9 @@ public class CleanStrategies {
         s = s.replaceAll(" And ", "");
         s = s.replaceAll(" AND ", "");
         s = s.replaceAll(" and ", "");
-        s = s.replaceAll(" OR ", "");
+       /* s = s.replaceAll(" OR ", " OREGON");
         s = s.replaceAll(" Or ", "");
-        s = s.replaceAll(" or ", "");
+        s = s.replaceAll(" or ", "");*/
         s = s.trim();
         return s;
     }
@@ -152,7 +158,7 @@ public class CleanStrategies {
      * false:无错位情况
      */
     public static int FirmNameMess(String s) {
-        if (s == null)
+        if (s == "")
             return -1;
         //将s转换成大写，并将.,转换为空格
         s = s.toUpperCase().replaceAll("[\\.,]", " ");
@@ -433,11 +439,13 @@ public class CleanStrategies {
      * @param searchResults lucene搜索的结果List，包含index，content文档的信息
      * @param newName       原纪录的公司名
      * @param newAddress    原纪录的地址信息
-     * @param others        其他信息，辅助参考
      * @return void
      */
-    public static void comprehensiveStrategy(List<Map> searchResults, String newName, String newAddress, String others) {
+    public static boolean comprehensiveStrategy(List<String> searchResults, String newName, String newAddress) {
 
+        Struct.companyName = newName;
+        Struct.companyAddress = newAddress;
+        Struct.changed = false;
 
         //根据查询结果来清洗每条记录
         for (int i = 0; i < searchResults.size(); i++) {
@@ -445,7 +453,7 @@ public class CleanStrategies {
 
             //将查询结果进行分割
             //tmp存储的是lucene查询到的信息
-            String[] nameAndAddress = ((String) searchResults.get(i).get("name_address")).split("\t");
+            String[] nameAndAddress = searchResults.get(i).split("\t", 2);
             String tmpName = nameAndAddress[0];
             String tmpAddress = nameAndAddress[1];
 
@@ -478,10 +486,16 @@ public class CleanStrategies {
                 newName = (tmpName.length() > newName.length()) ? tmpName : newName;
                 newAddress = (tmpAddress.replaceAll("[^a-zA-Z0-9]", "").length() > newAddress.replaceAll("[^a-zA-Z0-9]", "").length()) ? tmpAddress : newAddress;
             }
-
+        }
+        if (!Struct.companyName.equalsIgnoreCase(newName)
+                || !Struct.companyAddress.equalsIgnoreCase(newAddress)
+                ) {
+            Struct.changed = true;
             Struct.companyName = newName;
             Struct.companyAddress = newAddress;
         }
+        return Struct.changed;
+
     }
 
 }

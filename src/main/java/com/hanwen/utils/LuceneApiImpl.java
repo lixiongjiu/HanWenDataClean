@@ -98,6 +98,7 @@ public class LuceneApiImpl implements ILuceneAPI{
         try{
             if(reader!=null) {
                 reader.close();
+                System.out.println("IndexReader对象已经关闭");
                 reader=null;
             }
         }
@@ -110,6 +111,7 @@ public class LuceneApiImpl implements ILuceneAPI{
         try {
             if(writer!=null) {
                 writer.close();
+                System.out.println("IndexWriter对象已经关闭");
                 writer=null;
             }
         }

@@ -6,6 +6,7 @@ import com.hanwen.utils.SplitAndCleanUtils;
 import com.hanwen.utils.Struct;
 
 import java.io.*;
+import java.util.Date;
 
 /**
  * Created by LSQ on 2015/12/27.
@@ -22,7 +23,7 @@ public class DataCleaner {
     public void merge1(String src, String tar) {
 
         Indexer indexer = new Indexer();
-
+        Date start = new Date();
         try {
 
             BufferedReader br = FileOperator.getBufferReader(src);
@@ -33,23 +34,23 @@ public class DataCleaner {
             String line = null;
 
             //搜索前的准备，设置每次搜索的TOP K和搜索的索引（1和2，代表表1和表2）
-            indexer.prevSearch(20,1);
-            while ( (line = br.readLine()) != null ) {
+            indexer.prevSearch(20, 1);
+            while ((line = br.readLine()) != null) {
                 //line 分别包含id name address(多个字段)和其他信息
-                String[] items= SplitAndCleanUtils.splitAndClean(line);
+                String[] items = SplitAndCleanUtils.splitAndClean(line);
                 //整个记录都为空或者公司名为空，则跳过这条记录，无可救药
-                if(items==null)
+                if (items == null)
                     continue;
 
-                String id=items[0];
-                String name =items[1];
-                String address =items[2];
-                String others=items[3];
+                String id = items[0];
+                String name = items[1];
+                String address = items[2];
+                String others = items[3];
 
                 //清洗后的结果
                 //可以有选择的传入others信息，辅助判断,此时传入的是Bill_Type
-                String billType=others.substring( others.lastIndexOf("\t")+1 );
-                 CleanStrategies.comprehensiveStrategy(indexer.searchIndex(name+"\t"+address,billType),name,address,others);
+                String billType = others.substring(others.lastIndexOf("\t") + 1);
+                indexer.searchIndex(id,name, address, billType);
 
                 //判断这条记录是否被清洗过,被清洗过则更新信息
                 if (!name.equalsIgnoreCase(Struct.companyName) || !address.equalsIgnoreCase(Struct.companyAddress)) {
@@ -57,16 +58,15 @@ public class DataCleaner {
                 }
                 count++;
                 //清洗后的结果写入新文件
-                bw.write(id + "\t" + Struct.companyName + "\t" + Struct.companyAddress +"\t"+ others+ "\n");
-                if(count%1000==0)
+                bw.write(id + "\t" + Struct.companyName + "\t" + Struct.companyAddress + "\t" + others + "\n");
+                if (count % 1000 == 0)
                     bw.flush();
-                if(count>60000)
-                    System.out.println("出错");
             }
-
+            Date end = new Date();
             indexer.nextSearch();
 
             System.out.println("处理了" + --count + "条记录,\t" + "总共清洗了：" + countFalse);
+            System.out.println("总共耗时" + (float) (end.getTime() - start.getTime()) / 1000 + " 秒");
             bw.flush();
             bw.close();
             br.close();

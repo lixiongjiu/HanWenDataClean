@@ -27,15 +27,16 @@ public class SplitAndCleanUtils {
         String[] items = line.split("\t", 3);
         //处理收货公司名称，标准化写法，例如and，AND，&;并去除会造成lucene报错的关键字，例如\
         //公司名为空时，放弃这条记录（非常重要，有30多万条这种记录）
-        if (items[1] == null || items[1].equals("") )
+        if (items[1].equals(""))
             return null;
 
         //将地址和其他部分分成地址（4个字段）和其他部分,共五个部分
         String[] addressAndOthers = items[2].split("\t", 5);
 
         //处理地址1字段只有.的情况，删除该地址字段
-        if (addressAndOthers[0] != null && addressAndOthers[0].equals("."))
-            addressAndOthers[0] = null;
+        if (addressAndOthers[0].equals("."))
+            addressAndOthers[0] =" ";
+
 
         //处理公司名蹿位到地址字段的情况
         if (CleanStrategies.FirmNameMess(items[1]) == -1) {             //公司名字段中没有INC，LLC等信息，则有可能需要调整，否则不需要
@@ -49,16 +50,16 @@ public class SplitAndCleanUtils {
                     //同时对应的地址段变成空的
                     if (i > 0) {
                         for (int j = 0; j < i; j++) {
-                            items[1] += addressAndOthers[j];
-                            addressAndOthers[j] = null;
+                            items[1] +=( " "+addressAndOthers[j]);
+                            addressAndOthers[j] =" ";
                         }
                     }
-                    items[1] += addressAndOthers[i].substring(0, index + 4);
+                    items[1] +=( " "+addressAndOthers[i].substring(0, index + 4));
 
                     if (index + 4 < addressAndOthers[i].length())
                         addressAndOthers[i] = addressAndOthers[i].substring(index + 4);
                     else
-                        addressAndOthers[i] = null;
+                        addressAndOthers[i] =" ";
 
                     //一旦找到属于需要切割的地址段，则后面的地址段都不需要切割了,到此结束
                     //实际测试证明：地址1含有一部分公司名的概率最大，所以该段代码时间复杂度并不高
@@ -76,6 +77,7 @@ public class SplitAndCleanUtils {
                         addressAndOthers[1] + "\t" +
                         addressAndOthers[2] + "\t" +
                         addressAndOthers[3];
+
         //清理地址部分，只保留下字母，数字，&，@，#，制表符，\.和-等字符
         String address = CleanStrategies.deleteCompanyAddressSymbol(originAddress);
         return new String[]{items[0], companyName, address, addressAndOthers[4]};
